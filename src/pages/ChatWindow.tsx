@@ -17,6 +17,7 @@ const ChatWindow = () => {
   const [message, setMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const markedReadRef = useRef(false);
 
   const chat = chats.find(c => c.id === id);
   const otherUser = chat
@@ -25,14 +26,18 @@ const ChatWindow = () => {
   const student = chat ? getStudentById(chat.studentId) : undefined;
 
   useEffect(() => {
-    if (chat && currentUser) {
-      markMessagesRead(chat.id, currentUser.id);
+    if (chat && currentUser && !markedReadRef.current) {
+      const hasUnread = chat.messages.some(m => m.senderId !== currentUser.id && !m.read);
+      if (hasUnread) {
+        markMessagesRead(chat.id, currentUser.id);
+      }
+      markedReadRef.current = true;
     }
-  }, [chat, currentUser, markMessagesRead]);
+  }, [chat?.id, currentUser?.id]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [chat?.messages]);
+  }, [chat?.messages.length]);
 
   if (!chat || !otherUser || !currentUser) {
     return (

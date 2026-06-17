@@ -30,7 +30,7 @@ const GroupMessage = () => {
       const student = getStudentById(sid);
       const parent = student ? getParentByStudentId(student.id) : undefined;
       return { student, parent };
-    }).filter(m => m.student);
+    }).filter(m => m.student && m.parent);
   }, [selectedGroup, getStudentById, getParentByStudentId]);
 
   const recentMessages = useMemo(() => {
@@ -238,20 +238,47 @@ const GroupMessage = () => {
                   <h3 className="font-semibold text-gray-900">最近消息记录</h3>
                 </div>
                 <div className="divide-y divide-gray-50">
-                  {recentMessages.map(msg => (
-                    <div key={msg.id} className="p-4">
-                      <p className="text-sm text-gray-700 mb-1 whitespace-pre-wrap">
-                        {msg.content}
-                      </p>
-                      <div className="flex items-center justify-between text-xs text-gray-400">
-                        <span>{formatRelativeTime(msg.createdAt)}</span>
-                        <span>
-                          <CheckCircle className="w-3 h-3 inline mr-1" />
-                          已读 {msg.readStatus.length}/{groupMembers.length}
-                        </span>
+                  {recentMessages.map(msg => {
+                    const readParentIds = new Set(msg.readStatus.map(r => r.parentId));
+                    const readCount = groupMembers.filter(m => m.parent && readParentIds.has(m.parent.id)).length;
+                    const totalCount = groupMembers.length;
+                    return (
+                      <div key={msg.id} className="p-4">
+                        <p className="text-sm text-gray-700 mb-2 whitespace-pre-wrap">
+                          {msg.content}
+                        </p>
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-gray-400">{formatRelativeTime(msg.createdAt)}</span>
+                            <span className={readCount === totalCount ? 'text-green-600' : 'text-amber-600'}>
+                              <CheckCircle className="w-3 h-3 inline mr-1" />
+                              已读 {readCount}/{totalCount}
+                            </span>
+                          </div>
+                          {readCount < totalCount && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {groupMembers.filter(m => m.parent && !readParentIds.has(m.parent.id)).map(m => (
+                                <span key={m.parent!.id} className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-700 text-xs rounded-full">
+                                  {m.parent!.name}
+                                </span>
+                              ))}
+                              <span className="text-xs text-gray-400 self-center">未读</span>
+                            </div>
+                          )}
+                          {readCount > 0 && readCount < totalCount && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {groupMembers.filter(m => m.parent && readParentIds.has(m.parent.id)).map(m => (
+                                <span key={m.parent!.id} className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-50 text-green-700 text-xs rounded-full">
+                                  {m.parent!.name}
+                                </span>
+                              ))}
+                              <span className="text-xs text-gray-400 self-center">已读</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </Card>
             )}

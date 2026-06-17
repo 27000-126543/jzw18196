@@ -324,6 +324,18 @@ export const useAppStore = create<AppState>((set, get) => ({
     const now = new Date().toISOString();
 
     const chat = chats.find(c => c.id === chatId);
+    if (!chat) return;
+
+    const hasUnread = chat.messages.some(m => m.senderId !== userId && !m.read);
+    if (!hasUnread) return;
+
+    const groupMessageIds = new Set<string>();
+    chat.messages.forEach(msg => {
+      if (msg.groupMessageId && msg.senderId !== userId && !msg.read) {
+        groupMessageIds.add(msg.groupMessageId);
+      }
+    });
+
     const updatedChats = chats.map(c => {
       if (c.id === chatId) {
         return {
@@ -336,36 +348,27 @@ export const useAppStore = create<AppState>((set, get) => ({
       return c;
     });
 
-    if (chat) {
-      const groupMessageIds = new Set<string>();
-      chat.messages.forEach(msg => {
-        if (msg.groupMessageId && msg.senderId !== userId && !msg.read) {
-          groupMessageIds.add(msg.groupMessageId);
+    if (groupMessageIds.size > 0) {
+      const updatedGroupMessages = groupMessages.map(gm => {
+        if (groupMessageIds.has(gm.id)) {
+          const alreadyRead = gm.readStatus.some(r => r.parentId === userId);
+          if (!alreadyRead) {
+            return {
+              ...gm,
+              readStatus: [...gm.readStatus, { parentId: userId, readAt: now }]
+            };
+          }
         }
+        return gm;
       });
 
-      if (groupMessageIds.size > 0) {
-        const updatedGroupMessages = groupMessages.map(gm => {
-          if (groupMessageIds.has(gm.id)) {
-            const alreadyRead = gm.readStatus.some(r => r.parentId === userId);
-            if (!alreadyRead) {
-              return {
-                ...gm,
-                readStatus: [...gm.readStatus, { parentId: userId, readAt: now }]
-              };
-            }
-          }
-          return gm;
-        });
-
-        storage.set(STORAGE_KEYS.GROUP_MESSAGES, updatedGroupMessages);
-        set({ chats: updatedChats, groupMessages: updatedGroupMessages });
-        return;
-      }
+      storage.set(STORAGE_KEYS.GROUP_MESSAGES, updatedGroupMessages);
+      storage.set(STORAGE_KEYS.CHATS, updatedChats);
+      set({ chats: updatedChats, groupMessages: updatedGroupMessages });
+    } else {
+      storage.set(STORAGE_KEYS.CHATS, updatedChats);
+      set({ chats: updatedChats });
     }
-
-    storage.set(STORAGE_KEYS.CHATS, updatedChats);
-    set({ chats: updatedChats });
   },
 
   createGroup: (name, studentIds) => {
