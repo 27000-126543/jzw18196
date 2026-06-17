@@ -13,7 +13,7 @@ import type { SurveyQuestion, QuestionType } from '@/types';
 
 const SurveyNew = () => {
   const navigate = useNavigate();
-  const { createSurvey } = useAppStore();
+  const { currentUser, createSurvey } = useAppStore();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [deadline, setDeadline] = useState('');
@@ -28,6 +28,19 @@ const SurveyNew = () => {
   ]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  if (currentUser?.role !== 'teacher') {
+    return (
+      <PageContainer>
+        <div className="text-center py-12">
+          <AlertTriangle className="w-12 h-12 text-amber-500 mx-auto mb-4" />
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">无权限访问</h2>
+          <p className="text-sm text-gray-500 mb-6">仅老师可发布问卷</p>
+          <Button onClick={() => navigate('/surveys')}>返回问卷列表</Button>
+        </div>
+      </PageContainer>
+    );
+  }
 
   const addQuestion = () => {
     setQuestions([

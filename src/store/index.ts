@@ -172,6 +172,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   approveLeave: (leaveId, status, note) => {
     const { currentUser, leaves, students } = get();
     if (!currentUser) throw new Error('User not logged in');
+    if (currentUser.role !== 'teacher') throw new Error('Only teachers can approve leaves');
 
     const updatedLeaves = leaves.map(leave => {
       if (leave.id === leaveId) {
@@ -319,7 +320,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   markMessagesRead: (chatId, userId) => {
-    const { chats } = get();
+    const { chats, groupMessages } = get();
+    const now = new Date().toISOString();
 
     const updatedChats = chats.map(chat => {
       if (chat.id === chatId) {
@@ -333,12 +335,33 @@ export const useAppStore = create<AppState>((set, get) => ({
       return chat;
     });
 
+    const chat = chats.find(c => c.id === chatId);
+    if (chat) {
+      const updatedGroupMessages = groupMessages.map(gm => {
+        const hasUnreadGroupMessage = chat.messages.some(
+          m => m.groupId === gm.id && m.senderId !== userId && !m.read
+        );
+        const wasRead = gm.readStatus.some(r => r.parentId === userId);
+        
+        if (hasUnreadGroupMessage && !wasRead) {
+          return {
+            ...gm,
+            readStatus: [...gm.readStatus, { parentId: userId, readAt: now }]
+          };
+        }
+        return gm;
+      });
+
+      storage.set(STORAGE_KEYS.GROUP_MESSAGES, updatedGroupMessages);
+      set({ groupMessages: updatedGroupMessages });
+    }
+
     storage.set(STORAGE_KEYS.CHATS, updatedChats);
     set({ chats: updatedChats });
   },
 
   createGroup: (name, studentIds) => {
-    const { classInfo, groups } = get();
+    const { classInfo, groups, students } = get();
     if (!classInfo) throw new Error('Class info not found');
 
     const newGroup: Group = {
@@ -351,31 +374,73 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     const updatedGroups = [...groups, newGroup];
     storage.set(STORAGE_KEYS.GROUPS, updatedGroups);
-    set({ groups: updatedGroups });
+
+    const updatedStudents = students.map(student => {
+      if (studentIds.includes(student.id) && !student.groupIds.includes(newGroup.id)) {
+        return { ...student, groupIds: [...student.groupIds, newGroup.id] };
+      }
+      return student;
+    });
+    storage.set(STORAGE_KEYS.STUDENTS, updatedStudents);
+
+    set({ groups: updatedGroups, students: updatedStudents });
     return newGroup;
   },
 
   updateGroup: (groupId, name, studentIds) => {
-    const { groups } = get();
+    const { groups, students } = get();
+    const oldGroup = groups.find(g => g.id === groupId);
+    const oldStudentIds = oldGroup?.studentIds || [];
+
+    const addedStudentIds = studentIds.filter(id => !oldStudentIds.includes(id));
+    const removedStudentIds = oldStudentIds.filter(id => !studentIds.includes(id));
 
     const updatedGroups = groups.map(group =>
       group.id === groupId ? { ...group, name, studentIds } : group
     );
-
     storage.set(STORAGE_KEYS.GROUPS, updatedGroups);
-    set({ groups: updatedGroups });
+
+    const updatedStudents = students.map(student => {
+      if (addedStudentIds.includes(student.id) && !student.groupIds.includes(groupId)) {
+        return { ...student, groupIds: [...student.groupIds, groupId] };
+      }
+      if (removedStudentIds.includes(student.id)) {
+        return { ...student, groupIds: student.groupIds.filter(gid => gid !== groupId) };
+      }
+      return student;
+    });
+    storage.set(STORAGE_KEYS.STUDENTS, updatedStudents);
+
+    set({ groups: updatedGroups, students: updatedStudents });
   },
 
   deleteGroup: (groupId) => {
-    const { groups } = get();
+    const { groups, students } = get();
+    const group = groups.find(g => g.id === groupId);
     const updatedGroups = groups.filter(g => g.id !== groupId);
     storage.set(STORAGE_KEYS.GROUPS, updatedGroups);
-    set({ groups: updatedGroups });
+
+    if (group) {
+      const updatedStudents = students.map(student => {
+        if (group.studentIds.includes(student.id)) {
+          return { ...student, groupIds: student.groupIds.filter(gid => gid !== groupId) };
+        }
+        return student;
+      });
+      storage.set(STORAGE_KEYS.STUDENTS, updatedStudents);
+      set({ groups: updatedGroups, students: updatedStudents });
+    } else {
+      set({ groups: updatedGroups });
+    }
   },
 
   sendGroupMessage: (groupId, content) => {
-    const { currentUser, groupMessages } = get();
+    const { currentUser, groupMessages, groups, chats, getOrCreateChat, getParentByStudentId } = get();
     if (!currentUser) throw new Error('User not logged in');
+    if (currentUser.role !== 'teacher') throw new Error('Only teachers can send group messages');
+
+    const group = groups.find(g => g.id === groupId);
+    if (!group) throw new Error('Group not found');
 
     const newMessage: GroupMessage = {
       id: generateId(),
@@ -388,7 +453,34 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     const updatedMessages = [newMessage, ...groupMessages];
     storage.set(STORAGE_KEYS.GROUP_MESSAGES, updatedMessages);
-    set({ groupMessages: updatedMessages });
+
+    const updatedChats = [...chats];
+    group.studentIds.forEach(studentId => {
+      const parent = getParentByStudentId(studentId);
+      if (parent) {
+        const chat = getOrCreateChat(currentUser.id, parent.id, studentId);
+        const chatMessage = {
+          id: generateId(),
+          senderId: currentUser.id,
+          content,
+          type: 'text' as const,
+          createdAt: newMessage.createdAt,
+          read: false,
+          groupId: groupId
+        };
+
+        const chatIndex = updatedChats.findIndex(c => c.id === chat.id);
+        if (chatIndex >= 0) {
+          updatedChats[chatIndex] = {
+            ...updatedChats[chatIndex],
+            messages: [...updatedChats[chatIndex].messages, chatMessage]
+          };
+        }
+      }
+    });
+
+    storage.set(STORAGE_KEYS.CHATS, updatedChats);
+    set({ groupMessages: updatedMessages, chats: updatedChats });
     return newMessage;
   },
 

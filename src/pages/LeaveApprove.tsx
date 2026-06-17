@@ -15,7 +15,7 @@ import type { LeaveStatus } from '@/types';
 const LeaveApprove = () => {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { leaves, getStudentById, getParentByStudentId, approveLeave } = useAppStore();
+  const { currentUser, leaves, getStudentById, getParentByStudentId, approveLeave } = useAppStore();
   const [approvalNote, setApprovalNote] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -23,6 +23,19 @@ const LeaveApprove = () => {
   const leave = leaves.find(l => l.id === id);
   const student = leave ? getStudentById(leave.studentId) : undefined;
   const parent = student ? getParentByStudentId(student.id) : undefined;
+
+  if (currentUser?.role !== 'teacher') {
+    return (
+      <PageContainer>
+        <div className="text-center py-12">
+          <AlertTriangle className="w-12 h-12 text-amber-500 mx-auto mb-4" />
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">无权限访问</h2>
+          <p className="text-sm text-gray-500 mb-6">请假审批仅老师可操作</p>
+          <Button onClick={() => navigate('/leaves')}>返回请假列表</Button>
+        </div>
+      </PageContainer>
+    );
+  }
 
   if (!leave || !student) {
     return (

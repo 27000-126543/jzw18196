@@ -1,17 +1,34 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Phone, Mail, LogOut, Settings, Bell, Shield, GraduationCap, Users, Edit2 } from 'lucide-react';
+import { User, Phone, Mail, LogOut, Settings, Bell, Shield, GraduationCap, Users, Edit2, RotateCcw } from 'lucide-react';
 import { PageContainer } from '@/components/Layout/PageContainer';
 import { Button } from '@/components/common/Button';
 import { Card } from '@/components/common/Card';
 import { Avatar } from '@/components/common/Avatar';
 import { Badge } from '@/components/common/Badge';
+import { Modal } from '@/components/common/Modal';
 import { useAppStore } from '@/store';
+import { STORAGE_KEYS } from '@/utils/constants';
 
 const Profile = () => {
   const navigate = useNavigate();
-  const { currentUser, logout, classInfo, students } = useAppStore();
+  const { currentUser, logout, classInfo, students, init } = useAppStore();
   const [activeTab, setActiveTab] = useState<'info' | 'settings'>('info');
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+
+  const handleResetData = () => {
+    setIsResetting(true);
+    setTimeout(() => {
+      Object.values(STORAGE_KEYS).forEach(key => {
+        localStorage.removeItem(key);
+      });
+      init();
+      navigate('/login');
+      setShowResetModal(false);
+      setIsResetting(false);
+    }, 500);
+  };
 
   if (!currentUser) {
     navigate('/login');
@@ -214,9 +231,61 @@ const Profile = () => {
                 </div>
               </div>
             </Card>
+
+            <Card className="mt-6 border-red-100">
+              <div className="p-4 border-b border-red-100 bg-red-50/50">
+                <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                  <RotateCcw className="w-5 h-5 text-red-500" />
+                  危险操作
+                </h3>
+              </div>
+              <div className="p-4">
+                <p className="text-sm text-gray-500 mb-4">
+                  重置所有演示数据，包括通知、请假、问卷、聊天记录等。此操作不可撤销。
+                </p>
+                <Button
+                  variant="danger"
+                  onClick={() => setShowResetModal(true)}
+                  fullWidth
+                >
+                  <RotateCcw className="w-4 h-4 mr-2" />
+                  重置演示数据
+                </Button>
+              </div>
+            </Card>
           </div>
         )}
       </div>
+
+      <Modal
+        isOpen={showResetModal}
+        onClose={() => setShowResetModal(false)}
+        title="确认重置"
+      >
+        <div className="space-y-4">
+          <p className="text-gray-600">
+            确定要重置所有演示数据吗？此操作将清除所有通知、请假、问卷、聊天记录等数据，且不可撤销。
+          </p>
+          <div className="flex items-center gap-3 pt-4">
+            <Button
+              variant="ghost"
+              onClick={() => setShowResetModal(false)}
+              fullWidth
+              disabled={isResetting}
+            >
+              取消
+            </Button>
+            <Button
+              variant="danger"
+              onClick={handleResetData}
+              fullWidth
+              isLoading={isResetting}
+            >
+              确认重置
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </PageContainer>
   );
 };

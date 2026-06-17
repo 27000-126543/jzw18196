@@ -81,6 +81,7 @@ export interface ChatMessage {
   type: MessageType;
   createdAt: string;
   read: boolean;
+  groupId?: string;
 }
 
 export interface Chat {

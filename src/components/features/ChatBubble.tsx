@@ -1,5 +1,6 @@
-import { Check, CheckCheck } from 'lucide-react';
+import { Check, CheckCheck, Users } from 'lucide-react';
 import { Avatar } from '@/components/common/Avatar';
+import { Badge } from '@/components/common/Badge';
 import { useAppStore } from '@/store';
 import { formatTime } from '@/utils/date';
 import type { ChatMessage } from '@/types';
@@ -13,6 +14,9 @@ interface ChatBubbleProps {
 }
 
 export const ChatBubble = ({ message, isOwn, senderAvatar, senderName }: ChatBubbleProps) => {
+  const { groups } = useAppStore();
+  const group = message.groupId ? groups.find(g => g.id === message.groupId) : undefined;
+
   return (
     <div className={cn(
       'flex gap-3 mb-4 animate-in fade-in slide-in-from-bottom-2 duration-300',
@@ -31,8 +35,18 @@ export const ChatBubble = ({ message, isOwn, senderAvatar, senderName }: ChatBub
         'max-w-[70%] flex flex-col',
         isOwn ? 'items-end' : 'items-start'
       )}>
-        {!isOwn && senderName && (
-          <span className="text-xs text-gray-500 mb-1 px-1">{senderName}</span>
+        {(!isOwn || group) && (
+          <div className="flex items-center gap-2 mb-1 px-1">
+            {!isOwn && senderName && (
+              <span className="text-xs text-gray-500">{senderName}</span>
+            )}
+            {group && (
+              <Badge variant="info" size="sm">
+                <Users className="w-3 h-3 mr-1" />
+                {group.name}
+              </Badge>
+            )}
+          </div>
         )}
 
         <div className={cn(

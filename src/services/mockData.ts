@@ -28,6 +28,16 @@ export const initMockData = (): void => {
     storage.set(STORAGE_KEYS.GROUPS, DEFAULT_GROUPS);
   }
 
+  const students = storage.get(STORAGE_KEYS.STUDENTS, []);
+  const groups = storage.get(STORAGE_KEYS.GROUPS, []);
+  const studentsWithGroupIds = students.map(student => {
+    const studentGroupIds = groups
+      .filter(g => g.studentIds.includes(student.id))
+      .map(g => g.id);
+    return { ...student, groupIds: studentGroupIds };
+  });
+  storage.set(STORAGE_KEYS.STUDENTS, studentsWithGroupIds);
+
   if (!localStorage.getItem(STORAGE_KEYS.NOTICES)) {
     const sampleNotices: Notice[] = [
       {
